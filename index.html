@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live Overlay</title>
+<style>
+:root{--g:rgba(255,255,255,.07);--b:rgba(255,255,255,.14);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:#05060d}
+html,body{height:100%;margin:0;overflow:hidden;background:#05060d;color:#f4f6ff;font-family:-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+#bg{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+.ui{position:fixed;inset:0;z-index:2;pointer-events:none;padding:env(safe-area-inset-top,0) 14px env(safe-area-inset-bottom,0)}
+.top{display:flex;justify-content:space-between;align-items:center;padding-top:10px}
+.pill{background:var(--g);border:1px solid var(--b);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:30px;padding:7px 14px;font-size:13px;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:#e55;box-shadow:0 0 10px #e55}.dot.on{background:#3ddc97;box-shadow:0 0 12px #3ddc97}
+#welcome{position:absolute;left:0;right:0;top:20%;display:flex;justify-content:center}
+.card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:22px 28px;border-radius:30px;background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));border:1px solid var(--b);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 80px rgba(120,140,255,.25);animation:in .8s cubic-bezier(.2,.9,.3,1) both,out .8s ease-in both;animation-delay:0s,calc(var(--d) - .8s);max-width:88vw}
+.card .av{width:calc(84px*var(--s));height:calc(84px*var(--s));border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.7);box-shadow:0 0 40px var(--c);background:#223}
+.card .t{font-size:13px;letter-spacing:.3em;text-transform:uppercase;opacity:.75}
+.card .n{font-size:calc(26px*var(--s));font-weight:700;letter-spacing:.01em;word-break:break-word;unicode-bidi:plaintext}
+.card .gf{display:flex;align-items:center;gap:10px;font-size:calc(16px*var(--s));opacity:.95}
+.card .gf img{width:calc(44px*var(--s));height:calc(44px*var(--s));animation:spin 4s linear infinite}
+.e3d{display:inline-block;transform-style:preserve-3d;animation:spin 3s linear infinite;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5)) drop-shadow(0 0 14px var(--c,#8af))}
+@keyframes spin{to{transform:perspective(300px) rotateY(360deg)}}
+@keyframes in{from{opacity:0;transform:translateY(30px) scale(.8)}to{opacity:1;transform:none}}
+@keyframes out{to{opacity:0;transform:translateY(-20px) scale(.95)}}
+#thanks{position:absolute;right:14px;top:42%;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.th{display:flex;align-items:center;gap:8px;background:var(--g);border:1px solid var(--b);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:24px;padding:7px 14px;font-size:14px;animation:in .5s both,out .6s 3.2s both;unicode-bidi:plaintext}
+.th .e3d{font-size:22px}
+#chat{position:absolute;left:14px;bottom:14px;width:78%;display:flex;flex-direction:column;gap:6px;max-height:34%;overflow:hidden;justify-content:flex-end;-webkit-mask-image:linear-gradient(transparent,#000 30%);mask-image:linear-gradient(transparent,#000 30%)}
+.m{display:flex;gap:8px;align-items:flex-start;background:rgba(10,12,28,.45);border:1px solid var(--g);border-radius:18px;padding:6px 12px 6px 6px;width:fit-content;max-width:100%;font-size:14px;line-height:1.35;animation:in .4s both}
+.m img{width:26px;height:26px;border-radius:50%;object-fit:cover;flex:none;background:#223}
+.m b{color:#9fb4ff;font-weight:600;margin-inline-end:6px}.m span{unicode-bidi:plaintext;word-break:break-word}
+</style></head>
+<body>
+<canvas id="bg"></canvas>
+<div class="ui">
+  <div class="top"><div class="pill"><i class="dot" id="st"></i><span id="stt">Connecting</span></div><div class="pill">👁 <span id="vw">0</span></div></div>
+  <div id="welcome"></div>
+  <div id="thanks"></div>
+  <div id="chat"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),pick=a=>a[Math.random()*a.length|0],esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const P=new URLSearchParams(location.search),USER=P.get('u'),DEMO=!USER;
+
+/* ---------- 3D background: calm drifting particles + glass shapes ---------- */
+const cv=$('#bg'),R=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+R.setPixelRatio(Math.min(devicePixelRatio||1,2.5));
+const S=new THREE.Scene(),C=new THREE.PerspectiveCamera(55,1,.1,100);C.position.z=9;
+function rs(){R.setSize(innerWidth,innerHeight,false);C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix()}rs();addEventListener('resize',rs);
+const N=900,pa=new Float32Array(N*3);for(let i=0;i<N*3;i++)pa[i]=(Math.random()-.5)*26;
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pa,3));
+const pm=new THREE.PointsMaterial({size:.05,color:0x9fb4ff,transparent:true,opacity:.7,depthWrite:false});
+const pts=new THREE.Points(pg,pm);S.add(pts);
+const shapes=[];[[1.5,-3.2,1.2,0x7a8cff],[-2.6,2.6,-1,0xc08cff],[2.8,3.6,-2,0x6fe0ff]].forEach(([x,y,z,c],i)=>{
+ const m=new THREE.Mesh(i==0?new THREE.IcosahedronGeometry(1.3,1):i==1?new THREE.TorusKnotGeometry(.8,.25,120,16):new THREE.OctahedronGeometry(1),
+  new THREE.MeshBasicMaterial({color:c,wireframe:true,transparent:true,opacity:.35}));
+ m.position.set(x,y,z);m.userData.b=new THREE.Vector3(x,y,z);S.add(m);shapes.push(m)});
+let pulse=0,tint=new THREE.Color(0x9fb4ff);
+function boost(k,col){pulse=Math.min(pulse+k,3);if(col)tint.set(col)}
+(function loop(t){t*=.001;pts.rotation.y=t*.03;pts.rotation.x=t*.012;
+ shapes.forEach((m,i)=>{m.rotation.x=t*.15*(i+1)*.6;m.rotation.y=t*.2;m.position.y=m.userData.b.y+Math.sin(t*.5+i)*.4;m.scale.setScalar(1+pulse*.18);m.material.color.lerp(tint,.02);m.material.opacity=.3+pulse*.15});
+ pm.color.lerp(tint,.02);pm.size=.05+pulse*.03;pulse*=.96;R.render(S,C);requestAnimationFrame(loop)})(0);
+
+/* ---------- welcome cards for gifts (queued, scaled by gift value) ---------- */
+const tiers=[{max:20,s:1,d:6,c:'#7a8cff',e:['🎁']},{max:200,s:1.15,d:8,c:'#c08cff',e:['✨','🎁']},{max:1000,s:1.35,d:10,c:'#6fe0ff',e:['💎','✨','🌟']},{max:1e9,s:1.6,d:12,c:'#ffd36b',e:['👑','💎','🌟','🔥']}];
+const gq=[];let busy=false;
+function gift(d){gq.push(d);next()}
+function next(){if(busy||!gq.length)return;busy=true;const d=gq.shift(),T=tiers.find(t=>d.dia<t.max),dur=T.d*(gq.length>3?.55:1);
+ const el=document.createElement('div');el.className='card';el.style.cssText=`--s:${T.s};--c:${T.c};--d:${dur}s`;
+ el.innerHTML=`<img class="av" referrerpolicy="no-referrer" src="${esc(d.pic||'')}" onerror="this.style.visibility='hidden'">
+ <div class="t">Thank you</div><div class="n">${esc(d.name)}</div>
+ <div class="gf">${d.img?`<img referrerpolicy="no-referrer" src="${esc(d.img)}">`:''}<span>${esc(d.gift)}${d.n>1?' ×'+d.n:''}</span></div>
+ <div style="font-size:${22*T.s}px">${T.e.map(e=>`<span class="e3d">${e}</span>`).join(' ')}</div>`;
+ $('#welcome').appendChild(el);boost(d.dia>=1000?3:d.dia>=200?2:1,T.c);
+ setTimeout(()=>{el.remove();busy=false;next()},dur*1000)}
+
+/* ---------- thanks toasts (like every 50, follow, share, join, comment) ---------- */
+const likes={},lastThank={},words=['Awesome','Amazing','Legend','Superstar','Brilliant','Fantastic'];
+function toast(emoji,text,col){const el=document.createElement('div');el.className='th';el.style.setProperty('--c',col||'#8af');
+ el.innerHTML=`<span class="e3d">${emoji}</span><span>${text}</span>`;const box=$('#thanks');box.appendChild(el);
+ while(box.children.length>4)box.firstChild.remove();setTimeout(()=>el.remove(),3900);boost(.5,col)}
+function like(d){const k=d.id,o=likes[k]||(likes[k]={n:0,t:0});o.n+=d.n;const ms=Math.floor(o.n/50);
+ if(ms>o.t){o.t=ms;toast(pick(['💖','🔥','⭐','🚀']),`${pick(words)} <b>${esc(d.name)}</b> · ${ms*50} taps`,'#ff7ab0')}}
+function chat(d){const m=document.createElement('div');m.className='m';
+ m.innerHTML=`<img referrerpolicy="no-referrer" src="${esc(d.pic||'')}" onerror="this.style.visibility='hidden'"><div><b>${esc(d.name)}</b><span>${esc(d.text)}</span></div>`;
+ const box=$('#chat');box.appendChild(m);while(box.children.length>12)box.firstChild.remove();
+ const now=Date.now();if(!lastThank[d.id]||now-lastThank[d.id]>45000){lastThank[d.id]=now;toast('💬',`Thanks <b>${esc(d.name)}</b>`,'#6fe0ff')}}
+const H={gift,chat,like,
+ follow:d=>toast('💜',`Welcome to the family <b>${esc(d.name)}</b>`,'#c08cff'),
+ share:d=>toast('🚀',`Thanks for sharing <b>${esc(d.name)}</b>`,'#6fe0ff'),
+ join:d=>{const now=Date.now();if(!lastThank['j'+d.id]||now-lastThank['j'+d.id]>120000){lastThank['j'+d.id]=now;toast('👋',`Welcome <b>${esc(d.name)}</b>`,'#9fb4ff')}},
+ views:d=>$('#vw').textContent=d.n,
+ status:d=>{$('#st').className='dot'+(d.ok?' on':'');$('#stt').textContent=d.ok?'Live connected':(d.err?'Reconnecting…':'Connecting')}};
+
+/* ---------- connection (auto-reconnect) / demo ---------- */
+function connect(){const ws=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host);
+ ws.onopen=()=>ws.send(JSON.stringify({user:USER}));
+ ws.onmessage=e=>{try{const d=JSON.parse(e.data);H[d.t]&&H[d.t](d)}catch{}};
+ ws.onclose=()=>{H.status({ok:0});setTimeout(connect,2000)}}
+if(DEMO){H.status({ok:1});$('#stt').textContent='Demo (add ?u=username)';
+ const nm=['Mia','Omar','Zed','Lina','Noor','Kai'];let v=120;
+ setInterval(()=>chat({id:'a'+Math.random()*4|0,name:pick(nm),text:pick(['Hello!','Love this ❤️','🔥🔥','Great vibe'])}),1800);
+ setInterval(()=>like({id:'u1',name:'Mia',n:25}),900);
+ setInterval(()=>gift({name:pick(nm),gift:pick(['Rose','Lion','Galaxy']),n:1+Math.random()*3|0,dia:pick([5,99,500,3000])}),9000);
+ setTimeout(()=>gift({name:'Omar',gift:'Rose',n:3,dia:3}),1200);
+ setInterval(()=>{v+=Math.random()*6|0;$('#vw').textContent=v},2000)}
+else connect();
+</script></body></html>
